@@ -1,0 +1,108 @@
+#!/usr/bin/env ruby
+
+# make ctrl-c kind-of work
+trap("INT") { puts; line = "" }
+
+# remove quotes
+def wordify(str)
+    if str.starts_with?('"')
+        str = str.slice(1..-1)
+    end
+    if str.ends_with?('"')
+        str = str.slice(0..-2)
+    end
+end 
+
+# check if word is delimited by char & char2
+def delim(word, char, char2 = char) word[0] == char && word[-1] == char2 end
+
+# special case of delim, for convnience
+def str(word) delim(word, '"') end
+
+# FIXME:
+# need to implement
+# this before splitting
+# how do
+def quot(word) word[0] == '{' && word[1] == ' ' && word[-1] == '}' && word[-2] == ' ' end
+
+# $STACK:
+# global array that behaves like a stack
+# contains ruby numbers and strings
+$STACK = []
+
+
+# $WORDS:
+# global hash of name => lambda
+# lambda takes nothing,
+# mutates global named $STACK
+#
+# TODO: maybe turn into hash of:
+# name => hash of { lambda => pops }
+# or sth, so arity errors don't make ruby crash
+# OOP may solve this as well^
+
+$WORDS = {
+    '+' => lambda { $STACK.push($STACK.pop + $STACK.pop) },
+    '-' => lambda { $STACK.push($STACK.pop - $STACK.pop) },
+    '*' => lambda { $STACK.push($STACK.pop * $STACK.pop) },
+    '/' => lambda { $STACK.push($STACK.pop / $STACK.pop) },
+    '.' => lambda { puts $STACK.pop },
+    'clear' => lambda { $STACK = [] },           
+    'drop' => lambda { $STACK = $STACK.drop(1) }, 
+    'dup' => lambda { $STACK.push $STACK.last },
+    'swap' => lambda { $STACK[-2], $STACK[-1] = $STACK[-1], $STACK[-2] },
+    'exit' => lambda { exit 0 },
+
+    # USAGE EXAMPLE:
+    # "test" "puts 'yes'" def
+    # FIXME
+    'def' => lambda { 
+        word = $STACK.pop
+        body = wordify($STACK.pop)
+
+        $WORDS[word] = body
+    }
+}
+
+
+# read line
+# loop
+#   prompt user
+#   unless line empty loop
+#       get 1st thing from line
+#       if WORDS[thing]
+#           call it
+#       else push it, turn into integer if needed
+#       end if
+#       break if only one thing left
+#       remove 1st thing from line
+#   end loop
+#   print stack
+# end loop
+
+def start
+    loop do
+        print '-> '
+        line = $stdin.gets.strip
+        exit if line == $EOF
+        unless line.empty?
+            loop do
+                word = line.split.first 
+
+                if $WORDS[word] then $WORDS[word].call
+                else 
+                    word = word.to_i unless (str(word) || quot(word))
+                    $STACK.push word
+                end
+
+                break if !line.include? ' '
+                line = line.split(' ')[1..-1].join(' ')
+            end
+            puts
+        end
+
+        $STACK.each { |it| print "#{it} " }
+    end
+end
+
+start
